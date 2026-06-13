@@ -9,4 +9,8 @@ RUN /usr/bin/apt-get update && \
 
 WORKDIR /home/app
 
-ENTRYPOINT [ "bash" ]
+COPY transcode.sh .
+
+RUN chmod +x transcode.sh
+
+ENTRYPOINT ["./transcode.sh"]
