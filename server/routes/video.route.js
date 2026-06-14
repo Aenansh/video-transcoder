@@ -1,4 +1,12 @@
 import { Router } from "express";
+import {
+  createVideo,
+  fetchVideoById,
+  fetchVideos,
+  processVideo,
+  sendPresignedUrl,
+  updateVideo,
+} from "../controllers/video.controller.js";
 
 const router = Router();
 
