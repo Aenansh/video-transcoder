@@ -99,6 +99,9 @@ const sendPresignedUrl = async (req, res) => {
 
 const processVideo = async (req, res) => {
   try {
+    const { uniqueKey } = req.body;
+    
+
   } catch (error) {
     console.log("Error in processing video.", error);
     return res.status(500).json({ error: "Failed to process video." });
