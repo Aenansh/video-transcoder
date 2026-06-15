@@ -1,0 +1,90 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: transcoding-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - transcoding-network
+    restart: unless-stopped
+
+  # Transcoding Worker - processes jobs from the queue
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: transcoding-worker
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_URL=redis://redis:6379
+      # AWS/S3 Configuration (update with your values)
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ENDPOINT_URL_S3=${AWS_ENDPOINT_URL_S3}
+      - AWS_ENDPOINT_URL_IAM=${AWS_ENDPOINT_URL_IAM}
+      - BUCKET_NAME=${BUCKET_NAME:-videos}
+      # MongoDB (optional, for event tracking)
+      - DATABASE_URL=${DATABASE_URL}
+    command: node bullmq/worker.js
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./videos:/home/app/videos
+    networks:
+      - transcoding-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  # Producer - adds transcoding jobs to the queue
+  producer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: transcoding-producer
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_URL=redis://redis:6379
+      # AWS/S3 Configuration (update with your values)
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ENDPOINT_URL_S3=${AWS_ENDPOINT_URL_S3}
+      - AWS_ENDPOINT_URL_IAM=${AWS_ENDPOINT_URL_IAM}
+      - BUCKET_NAME=${BUCKET_NAME:-videos}
+    command: node bullmq/producer.js
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - transcoding-network
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+
+volumes:
+  redis_data:
+
+networks:
+  transcoding-network:
+    driver: bridge
