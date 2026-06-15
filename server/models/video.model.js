@@ -34,14 +34,6 @@ const VideoSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
-    status: {
-      type: String,
-      enum: {
-        values: ["PENDING", "PROCESSING", "READY", "FAILED"],
-        message: "{VALUE} is not a valid video status.",
-      },
-      default: "PENDING",
-    },
   },
   { timestamps: true },
 );

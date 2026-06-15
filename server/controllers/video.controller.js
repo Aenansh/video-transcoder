@@ -4,36 +4,15 @@ import env from "../utils/env.js";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import s3 from "../config/tigris.js";
 import { v4 } from "uuid";
-
-const createVideo = async (req, res) => {
-  try {
-    const { title, description, file, thumbnail, channelId, duration } =
-      req.body;
-    if (!title || !description || !file || !thumbnail || !channelId)
-      return res.status(400).json({ error: "All fields are required." });
-
-    const newVideo = await Video.create({
-      title,
-      description,
-      thumbnail,
-      file,
-      channelId,
-      isPublished: false,
-      duration,
-      status: "PENDING",
-    });
-
-    if (!newVideo)
-      return res.status(400).json({ error: "Couldn't create the video." });
-  } catch (error) {
-    console.log("Failed to create video", error);
-    return res.status(500).json({ error: "Failed to create video." });
-  }
-};
+import mongoose from "mongoose";
+import { VideoEvent } from "../models/event.model.js";
+import transcodingQueue from "../bullmq/producer.js";
 
 const fetchVideos = async (req, res) => {
   try {
-    const videos = await Video.find();
+    const videos = await Video.find({ isPublished: true }).sort({
+      createdAt: -1,
+    });
     if (!videos || videos.length === 0)
       return res.status(400).json({ error: "No videos found." });
 
@@ -46,7 +25,7 @@ const fetchVideos = async (req, res) => {
 
 const fetchVideoById = async (req, res) => {
   try {
-    const { id } = req.body;
+    const { id } = req.params;
     const videos = await Video.findById(id);
     if (!videos) return res.status(400).json({ error: "No videos found." });
 
@@ -59,7 +38,8 @@ const fetchVideoById = async (req, res) => {
 
 const updateVideo = async (req, res) => {
   try {
-    const { id, status } = req.body;
+    const { id } = req.params;
+    const { status } = req.body;
     const video = await Video.findByIdAndUpdate(id, { status });
 
     if (!video)
@@ -76,11 +56,19 @@ const updateVideo = async (req, res) => {
 
 const sendPresignedUrl = async (req, res) => {
   try {
-    const { file, contentType } = req.body;
-    if (!file || !contentType)
+    const { file, contentType, title, description, channelId, thumbnail } =
+      req.body;
+    if (
+      !file ||
+      !contentType ||
+      !title ||
+      !description ||
+      !channelId ||
+      !thumbnail
+    )
       return res.status(400).json({ error: "No file data provided." });
 
-    const uniqueKey = `raw-videos/${Date.now()}-${file}/${v4()}`;
+    const uniqueKey = `raw-videos/${Date.now()}-${v4()}-${file.replace(/\s+/g, "_")}`;
 
     const command = new PutObjectCommand({
       Bucket: env.BUCKET_NAME,
@@ -89,6 +77,29 @@ const sendPresignedUrl = async (req, res) => {
     });
 
     const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 900 });
+
+    const videoId = new mongoose.Types.ObjectId();
+    await VideoEvent.create({
+      videoId,
+      eventType: "VIDEO_UPLOAD_INITIATED",
+      payload: {
+        title,
+        description,
+        channelId,
+        rawFileKey: uniqueKey,
+      },
+    });
+
+    await Video.create({
+      _id: videoId,
+      title,
+      description,
+      channelId,
+      file: uniqueKey,
+      thumbnail,
+      duration: 0,
+      isPublished: false,
+    });
 
     res.status(200).json({ uploadUrl, key: uniqueKey });
   } catch (error) {
@@ -99,9 +110,30 @@ const sendPresignedUrl = async (req, res) => {
 
 const processVideo = async (req, res) => {
   try {
-    const { uniqueKey } = req.body;
-    
+    const { uniqueKey, videoId } = req.body;
 
+    if (!uniqueKey || !videoId) {
+      return res.status(400).json({ error: "Missing uniqueKey or videoId." });
+    }
+
+    await VideoEvent.create({
+      videoId,
+      eventType: "VIDEO_UPLOAD_CONFIRMED",
+      payload: { rawFileKey: uniqueKey },
+    });
+
+    await transcodingQueue.add(
+      "transcode_the_video",
+      {
+        rawFileKey: uniqueKey,
+      },
+      {
+        attempts: 1,
+      },
+    );
+    return res
+      .status(200)
+      .json({ message: "Video sent to processing queue successfully." });
   } catch (error) {
     console.log("Error in processing video.", error);
     return res.status(500).json({ error: "Failed to process video." });
@@ -109,7 +141,6 @@ const processVideo = async (req, res) => {
 };
 
 export {
-  createVideo,
   fetchVideos,
   fetchVideoById,
   updateVideo,
