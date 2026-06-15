@@ -15,8 +15,19 @@ import { Video } from "../models/video.model.js";
 
 const VIDEO_DIR = path.resolve("./videos");
 const OUTPUTS_DIR = path.join(VIDEO_DIR, "outputs");
-if (!fs.existsSync(VIDEOS_DIR)) fs.mkdirSync(VIDEOS_DIR, { recursive: true });
-if (!fs.existsSync(OUTPUTS_DIR)) fs.mkdirSync(OUTPUTS_DIR, { recursive: true });
+
+const getAllFiles = (dirPath, arrayOfFiles = []) => {
+  const files = fs.readdirSync(dirPath);
+  files.forEach((file) => {
+    const fullPath = path.join(dirPath, file);
+    if (fs.statSync(fullPath).isDirectory()) {
+      arrayOfFiles = getAllFiles(fullPath, arrayOfFiles);
+    } else {
+      arrayOfFiles.push(fullPath);
+    }
+  });
+  return arrayOfFiles;
+};
 
 const transcodingWorker = new Worker(
   "transcoding_queue",
@@ -57,13 +68,18 @@ const transcodingWorker = new Worker(
       });
 
       console.log(`[Job ${job.id}] Uploading HLS segments to Tigris`);
-      const files = fs.readdirSync(OUTPUTS_DIR);
+      const allFiles = getAllFiles(OUTPUTS_DIR);
 
-      for (const file of files) {
-        const fileStream = fs.createReadStream(path.join(OUTPUTS_DIR, file));
+      for (const filePath of allFiles) {
+        const fileStream = fs.createReadStream(filePath);
+
+        const relativePath = path
+          .relative(OUTPUTS_DIR, filePath)
+          .replace(/\\/g, "/");
+
         const uploadCommand = new PutObjectCommand({
           Bucket: env.BUCKET_NAME,
-          Key: `processed-videos/${videoId}/${file}`,
+          Key: `processed-videos/${videoId}/${relativePath}`,
           Body: fileStream,
           ContentType: file.endsWith(".m3u8")
             ? "application/x-mpegURL"
@@ -81,10 +97,10 @@ const transcodingWorker = new Worker(
         }),
       );
 
-      fs.unlinkSync(localFilePath);
-      files.forEach((f) => fs.unlinkSync(path.join(OUTPUTS_DIR, f)));
+      fs.rmSync(localFilePath, { force: true });
+      fs.rmSync(OUTPUTS_DIR, { recursive: true, force: true });
 
-      const finalStreamUrl = `https://${env.BUCKET_NAME}.fly.storage.tigris.dev/processed-videos/${videoId}/index.m3u8`;
+      const finalStreamUrl = `https://${env.BUCKET_NAME}.fly.storage.tigris.dev/processed-videos/${videoId}/master.m3u8`;
 
       await VideoEvent.create({
         videoId,
