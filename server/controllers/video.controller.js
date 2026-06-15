@@ -125,6 +125,7 @@ const processVideo = async (req, res) => {
     await transcodingQueue.add(
       "transcode_the_video",
       {
+        videoId,
         rawFileKey: uniqueKey,
       },
       {
