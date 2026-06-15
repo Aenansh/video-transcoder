@@ -56,7 +56,8 @@ const transcodingWorker = new Worker(
 
       await new Promise((resolve, reject) => {
         console.log(`[Job ${job.id}] Spawning transcode.sh`);
-        const transcodeProcess = spawn("../transcode.sh", [filename]);
+        const scriptPath = path.join(process.cwd(), "transcoder.sh");
+        const transcodeProcess = spawn(scriptPath, [filename]);
 
         transcodeProcess.stderr.on("data", (data) => {
           console.log(`[FFmpeg] ${data.toString().trim()}`);
@@ -134,6 +135,7 @@ const transcodingWorker = new Worker(
       port: env.REDIS_PORT,
       host: env.REDIS_HOST,
     },
+    concurrency: 2,
   },
 );
 
