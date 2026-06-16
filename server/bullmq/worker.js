@@ -12,6 +12,14 @@ import s3 from "../config/tigris.js";
 import { pipeline } from "stream/promises";
 import { spawn } from "child_process";
 import { Video } from "../models/video.model.js";
+import mongoose from "mongoose";
+import crypto from "node:crypto";
+globalThis.crypto = crypto;
+
+mongoose
+  .connect(env.mongo_uri)
+  .then(() => console.log("Worker successfully connected to MongoDB"))
+  .catch((err) => console.error("Worker MongoDB Connection Error:", err));
 
 const VIDEO_DIR = path.resolve("./videos");
 const OUTPUTS_DIR = path.join(VIDEO_DIR, "outputs");
@@ -82,7 +90,7 @@ const transcodingWorker = new Worker(
           Bucket: env.BUCKET_NAME,
           Key: `processed-videos/${videoId}/${relativePath}`,
           Body: fileStream,
-          ContentType: file.endsWith(".m3u8")
+          ContentType: filePath.endsWith(".m3u8")
             ? "application/x-mpegURL"
             : "video/MP2T",
         });
@@ -115,7 +123,7 @@ const transcodingWorker = new Worker(
         status: "READY",
       });
 
-      console.log(`[Job ${job.id}] ✨ Processing complete!`);
+      console.log(`[Job ${job.id}] Processing complete!`);
       return "Success";
     } catch (error) {
       console.error(`[Job ${job.id}] Failed:`, error);
@@ -140,5 +148,5 @@ const transcodingWorker = new Worker(
 );
 
 transcodingWorker.on("error", (job, error) => {
-  console.log(`Worker failed job ${job.id}: ${err.message}`);
+  console.log(`Worker failed job ${job.id}: ${error.message}`);
 });
