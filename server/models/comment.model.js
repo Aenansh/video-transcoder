@@ -36,6 +36,10 @@ const commentSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    dislikesCount: {
+      type: Number,
+      default: 0,
+    },
     replyCount: {
       type: Number,
       default: 0,
