@@ -5,6 +5,7 @@ const VideoEventSchema = new mongoose.Schema(
     videoId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Video",
+      required: true,
     },
     eventType: {
       type: String,
@@ -14,6 +15,7 @@ const VideoEventSchema = new mongoose.Schema(
         "TRANSCODING_STARTED",
         "TRANSCODING_COMPLETED",
         "TRANSCODING_FAILED",
+        "VIDEO_PUBLISHED",
       ],
       required: true,
     },

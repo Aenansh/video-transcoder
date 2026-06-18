@@ -2,9 +2,10 @@ import mongoose from "mongoose";
 
 const VideoSchema = new mongoose.Schema(
   {
-    channelId: {
+    owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      required: true,
     },
     file: {
       type: String,
@@ -33,6 +34,14 @@ const VideoSchema = new mongoose.Schema(
     isPublished: {
       type: Boolean,
       default: true,
+    },
+    likesCount: {
+      type: Number,
+      default: 0,
+    },
+    commentsCount: {
+      type: Number,
+      default: 0,
     },
     status: {
       type: String,

@@ -56,14 +56,14 @@ const updateVideo = async (req, res) => {
 
 const sendPresignedUrl = async (req, res) => {
   try {
-    const { file, contentType, title, description, channelId, thumbnail } =
+    const { file, contentType, title, description, owner, thumbnail } =
       req.body;
     if (
       !file ||
       !contentType ||
       !title ||
       !description ||
-      !channelId ||
+      !owner ||
       !thumbnail
     )
       return res.status(400).json({ error: "No file data provided." });
@@ -85,7 +85,7 @@ const sendPresignedUrl = async (req, res) => {
       payload: {
         title,
         description,
-        channelId,
+        owner,
         rawFileKey: uniqueKey,
       },
     });
@@ -94,7 +94,7 @@ const sendPresignedUrl = async (req, res) => {
       _id: videoId,
       title,
       description,
-      channelId,
+      owner,
       file: uniqueKey,
       thumbnail,
       duration: 0,

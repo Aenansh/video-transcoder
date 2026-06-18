@@ -119,11 +119,19 @@ const transcodingWorker = new Worker(
 
       await Video.findByIdAndUpdate(videoId, {
         isPublished: true,
-        streamUrl: finalStreamUrl,
+        file: finalStreamUrl,
         status: "READY",
       });
 
       console.log(`[Job ${job.id}] Processing complete!`);
+
+      await VideoEvent.create({
+        videoId,
+        eventType: "TRANSCODING_COMPLETED",
+        payload: { streamUrl: finalStreamUrl },
+      });
+
+      console.log(`[Job ${job.id}] Video Published!`);
       return "Success";
     } catch (error) {
       console.error(`[Job ${job.id}] Failed:`, error);
